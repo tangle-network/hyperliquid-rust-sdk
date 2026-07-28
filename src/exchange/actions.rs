@@ -11,6 +11,24 @@ use crate::{
     exchange::{cancel::CancelRequest, modify::ModifyRequest, order::OrderRequest},
 };
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum OrderGrouping {
+    Na,
+    NormalTpsl,
+    PositionTpsl,
+}
+
+impl OrderGrouping {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Na => "na",
+            Self::NormalTpsl => "normalTpsl",
+            Self::PositionTpsl => "positionTpsl",
+        }
+    }
+}
+
 fn eip_712_domain(chain_id: u64) -> Eip712Domain {
     eip712_domain! {
         name: "HyperliquidSignTransaction",
@@ -289,5 +307,17 @@ impl Eip712 for ApproveBuilderFee {
             &self.nonce,
         );
         keccak256(items.abi_encode())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OrderGrouping;
+
+    #[test]
+    fn order_grouping_uses_hyperliquid_wire_values() {
+        assert_eq!(OrderGrouping::Na.as_str(), "na");
+        assert_eq!(OrderGrouping::NormalTpsl.as_str(), "normalTpsl");
+        assert_eq!(OrderGrouping::PositionTpsl.as_str(), "positionTpsl");
     }
 }
