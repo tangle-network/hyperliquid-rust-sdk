@@ -27,7 +27,7 @@ use crate::{
     req::HttpClient,
     signature::{sign_l1_action, sign_typed_data},
     BaseUrl, BulkCancelCloid, ClassTransfer, Error, ExchangeResponseStatus, OrderGrouping,
-    OrderRequest, SpotSend, SpotUser, VaultTransfer, Withdraw3,
+    SpotSend, SpotUser, VaultTransfer, Withdraw3,
 };
 
 #[derive(Debug)]
@@ -495,27 +495,17 @@ impl ExchangeClient {
         wallet: Option<&PrivateKeySigner>,
         grouping: OrderGrouping,
     ) -> Result<ExchangeResponseStatus> {
+        let wallet = wallet.unwrap_or(&self.wallet);
+        let timestamp = next_nonce();
+
         let mut transformed_orders = Vec::new();
 
         for order in orders {
             transformed_orders.push(order.convert(&self.coin_to_asset)?);
         }
 
-        self.bulk_order_raw_with_grouping(transformed_orders, wallet, grouping)
-            .await
-    }
-
-    pub async fn bulk_order_raw_with_grouping(
-        &self,
-        orders: Vec<OrderRequest>,
-        wallet: Option<&PrivateKeySigner>,
-        grouping: OrderGrouping,
-    ) -> Result<ExchangeResponseStatus> {
-        let wallet = wallet.unwrap_or(&self.wallet);
-        let timestamp = next_nonce();
-
         let action = Actions::Order(BulkOrder {
-            orders,
+            orders: transformed_orders,
             grouping: grouping.as_str().to_string(),
             builder: None,
         });
@@ -581,6 +571,9 @@ impl ExchangeClient {
         cancels: Vec<ClientCancelRequest>,
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
+        let wallet = wallet.unwrap_or(&self.wallet);
+        let timestamp = next_nonce();
+
         let mut transformed_cancels = Vec::new();
         for cancel in cancels.into_iter() {
             let &asset = self
@@ -593,18 +586,9 @@ impl ExchangeClient {
             });
         }
 
-        self.bulk_cancel_raw(transformed_cancels, wallet).await
-    }
-
-    pub async fn bulk_cancel_raw(
-        &self,
-        cancels: Vec<CancelRequest>,
-        wallet: Option<&PrivateKeySigner>,
-    ) -> Result<ExchangeResponseStatus> {
-        let wallet = wallet.unwrap_or(&self.wallet);
-        let timestamp = next_nonce();
-
-        let action = Actions::Cancel(BulkCancel { cancels });
+        let action = Actions::Cancel(BulkCancel {
+            cancels: transformed_cancels,
+        });
         let connection_id = action.hash(timestamp, self.vault_address)?;
 
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
@@ -697,21 +681,11 @@ impl ExchangeClient {
         is_cross: bool,
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
-        let &asset_index = self.coin_to_asset.get(coin).ok_or(Error::AssetNotFound)?;
-        self.update_leverage_by_asset_index(leverage, asset_index, is_cross, wallet)
-            .await
-    }
-
-    pub async fn update_leverage_by_asset_index(
-        &self,
-        leverage: u32,
-        asset_index: u32,
-        is_cross: bool,
-        wallet: Option<&PrivateKeySigner>,
-    ) -> Result<ExchangeResponseStatus> {
         let wallet = wallet.unwrap_or(&self.wallet);
+
         let timestamp = next_nonce();
 
+        let &asset_index = self.coin_to_asset.get(coin).ok_or(Error::AssetNotFound)?;
         let action = Actions::UpdateLeverage(UpdateLeverage {
             asset: asset_index,
             is_cross,

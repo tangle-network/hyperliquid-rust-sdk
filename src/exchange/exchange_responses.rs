@@ -1,11 +1,11 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct RestingOrder {
     pub oid: u64,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FilledOrder {
     pub total_sz: String,
@@ -13,7 +13,7 @@ pub struct FilledOrder {
     pub oid: u64,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum ExchangeDataStatus {
     Success,
@@ -24,19 +24,19 @@ pub enum ExchangeDataStatus {
     Filled(FilledOrder),
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct ExchangeDataStatuses {
     pub statuses: Vec<ExchangeDataStatus>,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct ExchangeResponse {
     #[serde(rename = "type")]
     pub response_type: String,
     pub data: Option<ExchangeDataStatuses>,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 #[serde(tag = "status", content = "response")]
 pub enum ExchangeResponseStatus {
