@@ -951,6 +951,84 @@ mod tests {
         Ok(())
     }
 
+    /// Builds the same order as `test_limit_order_action_hashing`, but lets the
+    /// caller supply the grouping field.
+    fn limit_order_action(grouping: String) -> Actions {
+        Actions::Order(BulkOrder {
+            orders: vec![OrderRequest {
+                asset: 1,
+                is_buy: true,
+                limit_px: "2000.0".to_string(),
+                sz: "3.5".to_string(),
+                reduce_only: false,
+                order_type: Order::Limit(Limit {
+                    tif: "Ioc".to_string(),
+                }),
+                cloid: None,
+            }],
+            grouping,
+            builder: None,
+        })
+    }
+
+    /// `OrderGrouping` must put the same bytes on the wire as the grouping
+    /// strings that the SDK used before. The action hash is the important one:
+    /// the L1 signature commits to it, so a difference breaks every order.
+    #[test]
+    fn test_typed_grouping_serializes_like_the_string_it_replaces() -> Result<()> {
+        for (grouping, previous_string) in [
+            (OrderGrouping::Na, "na"),
+            (OrderGrouping::NormalTpsl, "normalTpsl"),
+            (OrderGrouping::PositionTpsl, "positionTpsl"),
+        ] {
+            assert_eq!(grouping.as_str(), previous_string);
+
+            let typed_action = limit_order_action(grouping.as_str().to_string());
+            let string_action = limit_order_action(previous_string.to_string());
+
+            assert_eq!(
+                typed_action.hash(1583838, None)?,
+                string_action.hash(1583838, None)?,
+                "action hash changed for grouping {previous_string}"
+            );
+
+            let typed_json =
+                serde_json::to_value(&typed_action).map_err(|e| Error::JsonParse(e.to_string()))?;
+            let string_json = serde_json::to_value(&string_action)
+                .map_err(|e| Error::JsonParse(e.to_string()))?;
+            assert_eq!(
+                typed_json, string_json,
+                "request body changed for grouping {previous_string}"
+            );
+
+            // The derived Serialize is part of the public API. Keep it in step
+            // with `as_str`, so the two cannot drift apart.
+            let enum_json =
+                serde_json::to_string(&grouping).map_err(|e| Error::JsonParse(e.to_string()))?;
+            assert_eq!(enum_json, format!("\"{previous_string}\""));
+        }
+
+        Ok(())
+    }
+
+    /// The default path stays byte for byte what it was. These two signatures
+    /// are the ones that `test_limit_order_action_hashing` pinned before this
+    /// change, and `OrderGrouping::Na` must still produce them.
+    #[test]
+    fn test_default_grouping_keeps_the_known_signatures() -> Result<()> {
+        let wallet = get_wallet()?;
+        let connection_id =
+            limit_order_action(OrderGrouping::Na.as_str().to_string()).hash(1583838, None)?;
+
+        let signature = sign_l1_action(&wallet, connection_id, true)?;
+        assert_eq!(signature.to_string(), "0x77957e58e70f43b6b68581f2dc42011fc384538a2e5b7bf42d5b936f19fbb67360721a8598727230f67080efee48c812a6a4442013fd3b0eed509171bef9f23f1c");
+
+        let signature = sign_l1_action(&wallet, connection_id, false)?;
+        assert_eq!(signature.to_string(), "0xcd0925372ff1ed499e54883e9a6205ecfadec748f80ec463fe2f84f1209648776377961965cb7b12414186b1ea291e95fd512722427efcbcfb3b0b2bcd4d79d01c");
+
+        Ok(())
+    }
+
     #[test]
     fn test_limit_order_action_hashing_with_cloid() -> Result<()> {
         let cloid = uuid::Uuid::from_str("1e60610f-0b3d-4205-97c8-8c1fed2ad5ee")

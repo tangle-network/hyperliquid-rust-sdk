@@ -309,15 +309,3 @@ impl Eip712 for ApproveBuilderFee {
         keccak256(items.abi_encode())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::OrderGrouping;
-
-    #[test]
-    fn order_grouping_uses_hyperliquid_wire_values() {
-        assert_eq!(OrderGrouping::Na.as_str(), "na");
-        assert_eq!(OrderGrouping::NormalTpsl.as_str(), "normalTpsl");
-        assert_eq!(OrderGrouping::PositionTpsl.as_str(), "positionTpsl");
-    }
-}
